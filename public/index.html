@@ -145,9 +145,14 @@
     }
 
     /* Convert button */
-    .convert-btn {
+    .btn-row {
       margin-top: 24px;
-      width: 100%;
+      display: flex;
+      gap: 12px;
+    }
+
+    .convert-btn {
+      flex: 1;
       padding: 16px;
       font-size: 16px;
       font-weight: 600;
@@ -168,6 +173,35 @@
       background: #1a1a1a;
       color: #444;
       cursor: not-allowed;
+    }
+
+    .clear-btn {
+      padding: 16px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      border: 1px solid #333;
+      border-radius: 12px;
+      cursor: pointer;
+      background: #1a1a1a;
+      color: #888;
+      transition: all 0.2s;
+    }
+
+    .clear-btn:hover {
+      border-color: #ff453a;
+      color: #ff453a;
+      background: #1a0d0d;
+    }
+
+    .clear-btn:disabled {
+      opacity: 0.3;
+      cursor: not-allowed;
+    }
+
+    .clear-btn:disabled:hover {
+      border-color: #333;
+      color: #888;
+      background: #1a1a1a;
     }
 
     /* Status */
@@ -260,7 +294,10 @@
 
     <div class="file-list" id="fileList"></div>
 
-    <button class="convert-btn" id="convertBtn" disabled>Convert to GLB</button>
+    <div class="btn-row">
+      <button class="convert-btn" id="convertBtn" disabled>Convert to GLB</button>
+      <button class="clear-btn" id="clearBtn" disabled>Clear All</button>
+    </div>
 
     <div class="status" id="status"></div>
 
@@ -359,10 +396,42 @@
       });
     }
 
+    const clearBtn = document.getElementById('clearBtn');
+
     function updateConvertButton() {
       const hasObj = [...files.keys()].some(n => n.toLowerCase().endsWith('.obj'));
       convertBtn.disabled = !hasObj;
+      clearBtn.disabled = files.size === 0 && !glbBlob;
     }
+
+    function clearAll() {
+      // Clear files
+      files.clear();
+      renderFileList();
+
+      // Clear GLB
+      glbBlob = null;
+      glbFilename = 'model.glb';
+
+      // Hide preview and clean up renderer
+      previewSection.classList.remove('visible');
+      if (renderer) {
+        cancelAnimationFrame(animFrameId);
+        renderer.dispose();
+        controls.dispose();
+        renderer = null;
+      }
+
+      // Clear status
+      statusEl.className = 'status';
+      statusEl.textContent = '';
+
+      // Reset buttons
+      convertBtn.textContent = 'Convert to GLB';
+      updateConvertButton();
+    }
+
+    clearBtn.addEventListener('click', clearAll);
 
     function setStatus(msg, type) {
       statusEl.className = 'status ' + type;
