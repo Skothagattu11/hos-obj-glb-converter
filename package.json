@@ -1,0 +1,11 @@
+{
+  "name": "obj-to-glb-converter",
+  "version": "1.0.0",
+  "description": "Convert OBJ + MTL files to GLB",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0"
+  }
+}

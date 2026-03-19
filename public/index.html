@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OBJ → GLB Converter</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0a0a0a;
+      color: #e0e0e0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      margin-top: 40px;
+      font-size: 28px;
+      font-weight: 600;
+      letter-spacing: -0.5px;
+    }
+
+    h1 span { color: #00ff94; }
+
+    .subtitle {
+      color: #666;
+      margin-top: 8px;
+      font-size: 14px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 900px;
+      padding: 0 24px;
+      margin-top: 40px;
+    }
+
+    /* Upload area */
+    .upload-zone {
+      border: 2px dashed #333;
+      border-radius: 16px;
+      padding: 48px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #111;
+    }
+
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: #00ff94;
+      background: #0d1a12;
+    }
+
+    .upload-zone h2 {
+      font-size: 18px;
+      margin-bottom: 8px;
+    }
+
+    .upload-zone p {
+      color: #666;
+      font-size: 13px;
+    }
+
+    .upload-zone .formats {
+      margin-top: 16px;
+      display: flex;
+      gap: 8px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+
+    .format-badge {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 6px;
+      padding: 4px 12px;
+      font-size: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      color: #888;
+    }
+
+    input[type="file"] { display: none; }
+
+    /* File list */
+    .file-list {
+      margin-top: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .file-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #151515;
+      border: 1px solid #222;
+      border-radius: 10px;
+      padding: 12px 16px;
+    }
+
+    .file-item .file-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .file-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    .file-icon.obj { background: #1a2a1a; color: #00ff94; }
+    .file-icon.mtl { background: #1a1a2a; color: #6e8fff; }
+    .file-icon.tex { background: #2a2a1a; color: #ffd600; }
+
+    .file-name { font-size: 14px; }
+    .file-size { font-size: 12px; color: #555; }
+
+    .file-remove {
+      background: none;
+      border: none;
+      color: #555;
+      cursor: pointer;
+      font-size: 18px;
+      padding: 4px 8px;
+      border-radius: 6px;
+      transition: all 0.15s;
+    }
+
+    .file-remove:hover {
+      background: #2a1515;
+      color: #ff453a;
+    }
+
+    /* Convert button */
+    .convert-btn {
+      margin-top: 24px;
+      width: 100%;
+      padding: 16px;
+      font-size: 16px;
+      font-weight: 600;
+      border: none;
+      border-radius: 12px;
+      cursor: pointer;
+      background: #00ff94;
+      color: #000;
+      transition: all 0.2s;
+    }
+
+    .convert-btn:hover:not(:disabled) {
+      background: #00cc77;
+      transform: translateY(-1px);
+    }
+
+    .convert-btn:disabled {
+      background: #1a1a1a;
+      color: #444;
+      cursor: not-allowed;
+    }
+
+    /* Status */
+    .status {
+      margin-top: 16px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      display: none;
+    }
+
+    .status.info { display: block; background: #111a2a; border: 1px solid #1a2a4a; color: #6e8fff; }
+    .status.success { display: block; background: #0d1a12; border: 1px solid #1a3a1a; color: #00ff94; }
+    .status.error { display: block; background: #1a0d0d; border: 1px solid #3a1a1a; color: #ff453a; }
+
+    /* Preview */
+    .preview-section {
+      margin-top: 32px;
+      display: none;
+    }
+
+    .preview-section.visible { display: block; }
+
+    .preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+    }
+
+    .preview-header h3 { font-size: 16px; }
+
+    .download-btn {
+      padding: 8px 20px;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background: #00ff94;
+      color: #000;
+      transition: all 0.15s;
+    }
+
+    .download-btn:hover { background: #00cc77; }
+
+    #preview-canvas {
+      width: 100%;
+      height: 400px;
+      border-radius: 12px;
+      border: 1px solid #222;
+      background: #0d0d0d;
+    }
+
+    .footer {
+      margin-top: 48px;
+      margin-bottom: 24px;
+      color: #333;
+      font-size: 12px;
+    }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+
+  <h1>OBJ <span>→</span> GLB</h1>
+  <p class="subtitle">Upload OBJ + MTL files, get a GLB back</p>
+
+  <div class="container">
+
+    <div class="upload-zone" id="dropZone">
+      <h2>Drop files here or click to browse</h2>
+      <p>Select your .obj, .mtl, and any texture images</p>
+      <div class="formats">
+        <span class="format-badge">.obj</span>
+        <span class="format-badge">.mtl</span>
+        <span class="format-badge">.jpg</span>
+        <span class="format-badge">.png</span>
+        <span class="format-badge">.bmp</span>
+      </div>
+    </div>
+    <input type="file" id="fileInput" multiple accept=".obj,.mtl,.jpg,.jpeg,.png,.bmp,.tga,.gif">
+
+    <div class="file-list" id="fileList"></div>
+
+    <button class="convert-btn" id="convertBtn" disabled>Convert to GLB</button>
+
+    <div class="status" id="status"></div>
+
+    <div class="preview-section" id="previewSection">
+      <div class="preview-header">
+        <h3>3D Preview</h3>
+        <button class="download-btn" id="downloadBtn">Download .glb</button>
+      </div>
+      <canvas id="preview-canvas"></canvas>
+    </div>
+
+    <p class="footer">All processing happens in your browser. No files are uploaded to any server.</p>
+  </div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+    import { MTLLoader } from 'three/addons/loaders/MTLLoader.js';
+    import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+    // State
+    const files = new Map();
+    let glbBlob = null;
+    let glbFilename = 'model.glb';
+
+    // DOM
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const fileList = document.getElementById('fileList');
+    const convertBtn = document.getElementById('convertBtn');
+    const statusEl = document.getElementById('status');
+    const previewSection = document.getElementById('previewSection');
+    const downloadBtn = document.getElementById('downloadBtn');
+    const canvas = document.getElementById('preview-canvas');
+
+    // File handling
+    dropZone.addEventListener('click', () => fileInput.click());
+    dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      addFiles(e.dataTransfer.files);
+    });
+    fileInput.addEventListener('change', () => { addFiles(fileInput.files); fileInput.value = ''; });
+
+    function addFiles(fileListInput) {
+      for (const file of fileListInput) {
+        files.set(file.name, file);
+      }
+      renderFileList();
+      updateConvertButton();
+    }
+
+    function removeFile(name) {
+      files.delete(name);
+      renderFileList();
+      updateConvertButton();
+    }
+
+    function getFileType(name) {
+      const ext = name.split('.').pop().toLowerCase();
+      if (ext === 'obj') return 'obj';
+      if (ext === 'mtl') return 'mtl';
+      return 'tex';
+    }
+
+    function formatSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / 1048576).toFixed(1) + ' MB';
+    }
+
+    function renderFileList() {
+      fileList.innerHTML = '';
+      for (const [name, file] of files) {
+        const type = getFileType(name);
+        const div = document.createElement('div');
+        div.className = 'file-item';
+        div.innerHTML = `
+          <div class="file-info">
+            <div class="file-icon ${type}">${type.toUpperCase()}</div>
+            <div>
+              <div class="file-name">${name}</div>
+              <div class="file-size">${formatSize(file.size)}</div>
+            </div>
+          </div>
+          <button class="file-remove" data-name="${name}">×</button>
+        `;
+        fileList.appendChild(div);
+      }
+
+      fileList.querySelectorAll('.file-remove').forEach(btn => {
+        btn.addEventListener('click', () => removeFile(btn.dataset.name));
+      });
+    }
+
+    function updateConvertButton() {
+      const hasObj = [...files.keys()].some(n => n.toLowerCase().endsWith('.obj'));
+      convertBtn.disabled = !hasObj;
+    }
+
+    function setStatus(msg, type) {
+      statusEl.className = 'status ' + type;
+      statusEl.textContent = msg;
+    }
+
+    // Build a virtual file system from uploaded files
+    function buildFileMap() {
+      const map = {};
+      for (const [name, file] of files) {
+        map[name.toLowerCase()] = file;
+        map[name] = file;
+      }
+      return map;
+    }
+
+    // Read file as text
+    function readAsText(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsText(file);
+      });
+    }
+
+    // Read file as data URL
+    function readAsDataURL(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+    }
+
+    // Custom loading manager that resolves from uploaded files
+    function createLoadingManager(fileMap) {
+      const manager = new THREE.LoadingManager();
+      const objectURLs = [];
+
+      manager.setURLModifier((url) => {
+        // Extract just the filename from the URL
+        const filename = url.split('/').pop().split('?')[0];
+        const file = fileMap[filename] || fileMap[filename.toLowerCase()];
+        if (file) {
+          const objectURL = URL.createObjectURL(file);
+          objectURLs.push(objectURL);
+          return objectURL;
+        }
+        return url;
+      });
+
+      manager.cleanup = () => {
+        objectURLs.forEach(url => URL.revokeObjectURL(url));
+      };
+
+      return manager;
+    }
+
+    // Convert
+    convertBtn.addEventListener('click', async () => {
+      convertBtn.disabled = true;
+      convertBtn.textContent = 'Converting...';
+      setStatus('Reading files...', 'info');
+
+      try {
+        const fileMap = buildFileMap();
+
+        // Find OBJ and MTL files
+        const objName = [...files.keys()].find(n => n.toLowerCase().endsWith('.obj'));
+        const mtlName = [...files.keys()].find(n => n.toLowerCase().endsWith('.mtl'));
+
+        if (!objName) throw new Error('No .obj file found');
+
+        const objText = await readAsText(files.get(objName));
+
+        const manager = createLoadingManager(fileMap);
+        const objLoader = new OBJLoader(manager);
+
+        // Load MTL if available
+        if (mtlName) {
+          setStatus('Parsing materials...', 'info');
+          const mtlText = await readAsText(files.get(mtlName));
+          const mtlLoader = new MTLLoader(manager);
+          const materials = mtlLoader.parse(mtlText, '');
+          materials.preload();
+          objLoader.setMaterials(materials);
+        }
+
+        setStatus('Parsing geometry...', 'info');
+        const object = objLoader.parse(objText);
+
+        // Center and normalize the model
+        const box = new THREE.Box3().setFromObject(object);
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        const maxDim = Math.max(size.x, size.y, size.z);
+        const scale = 2 / maxDim;
+        object.position.sub(center);
+        object.scale.multiplyScalar(scale);
+
+        // If no MTL, apply a default material
+        if (!mtlName) {
+          object.traverse((child) => {
+            if (child.isMesh) {
+              child.material = new THREE.MeshStandardMaterial({
+                color: 0xcccccc,
+                roughness: 0.6,
+                metalness: 0.1,
+              });
+            }
+          });
+        }
+
+        setStatus('Exporting to GLB...', 'info');
+        const scene = new THREE.Scene();
+        scene.add(object);
+
+        const exporter = new GLTFExporter();
+        const glbData = await new Promise((resolve, reject) => {
+          exporter.parse(
+            scene,
+            (result) => resolve(result),
+            (error) => reject(error),
+            { binary: true }
+          );
+        });
+
+        glbBlob = new Blob([glbData], { type: 'model/gltf-binary' });
+        glbFilename = objName.replace(/\.obj$/i, '.glb');
+
+        setStatus(`Done! GLB size: ${formatSize(glbBlob.size)}`, 'success');
+
+        // Show preview
+        setupPreview(scene);
+        previewSection.classList.add('visible');
+
+        manager.cleanup();
+      } catch (err) {
+        setStatus('Error: ' + err.message, 'error');
+        console.error(err);
+      } finally {
+        convertBtn.disabled = false;
+        convertBtn.textContent = 'Convert to GLB';
+        updateConvertButton();
+      }
+    });
+
+    // Download
+    downloadBtn.addEventListener('click', () => {
+      if (!glbBlob) return;
+      const url = URL.createObjectURL(glbBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = glbFilename;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+
+    // 3D Preview
+    let renderer, previewScene, previewCamera, controls, animFrameId;
+
+    function setupPreview(scene) {
+      if (renderer) {
+        cancelAnimationFrame(animFrameId);
+        renderer.dispose();
+        controls.dispose();
+      }
+
+      const rect = canvas.getBoundingClientRect();
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+      renderer.setSize(rect.width, rect.height);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.setClearColor(0x0d0d0d);
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.2;
+
+      previewCamera = new THREE.PerspectiveCamera(45, rect.width / rect.height, 0.01, 100);
+      previewCamera.position.set(2, 1.5, 3);
+
+      controls = new OrbitControls(previewCamera, canvas);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.08;
+      controls.target.set(0, 0, 0);
+
+      previewScene = scene.clone();
+
+      // Lighting
+      const ambient = new THREE.AmbientLight(0xffffff, 0.5);
+      previewScene.add(ambient);
+
+      const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+      dirLight.position.set(5, 8, 5);
+      previewScene.add(dirLight);
+
+      const fillLight = new THREE.DirectionalLight(0xffffff, 0.4);
+      fillLight.position.set(-3, 2, -3);
+      previewScene.add(fillLight);
+
+      // Grid
+      const grid = new THREE.GridHelper(6, 20, 0x222222, 0x181818);
+      previewScene.add(grid);
+
+      function animate() {
+        animFrameId = requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(previewScene, previewCamera);
+      }
+      animate();
+
+      // Handle resize
+      const resizeObserver = new ResizeObserver(() => {
+        const r = canvas.getBoundingClientRect();
+        renderer.setSize(r.width, r.height);
+        previewCamera.aspect = r.width / r.height;
+        previewCamera.updateProjectionMatrix();
+      });
+      resizeObserver.observe(canvas);
+    }
+  </script>
+</body>
+</html>
