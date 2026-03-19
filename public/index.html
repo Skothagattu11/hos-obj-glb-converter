@@ -346,6 +346,12 @@
     fileInput.addEventListener('change', () => { addFiles(fileInput.files); fileInput.value = ''; });
 
     function addFiles(fileListInput) {
+      // Check if new batch contains an OBJ — if so, clear everything for a fresh start
+      const hasNewObj = [...fileListInput].some(f => f.name.toLowerCase().endsWith('.obj'));
+      if (hasNewObj) {
+        clearAll();
+      }
+
       for (const file of fileListInput) {
         files.set(file.name, file);
       }
