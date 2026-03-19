@@ -323,6 +323,7 @@
     const files = new Map();
     let glbBlob = null;
     let glbFilename = 'model.glb';
+    let activeObjectURLs = [];
 
     // DOM
     const dropZone = document.getElementById('dropZone');
@@ -415,18 +416,42 @@
       files.clear();
       renderFileList();
 
-      // Clear GLB
+      // Clear GLB blob
       glbBlob = null;
       glbFilename = 'model.glb';
 
-      // Hide preview and clean up renderer
+      // Revoke all object URLs (texture blobs, etc.)
+      activeObjectURLs.forEach(url => URL.revokeObjectURL(url));
+      activeObjectURLs = [];
+
+      // Dispose preview scene — meshes, geometries, materials, textures
+      if (previewScene) {
+        previewScene.traverse((obj) => {
+          if (obj.geometry) obj.geometry.dispose();
+          if (obj.material) {
+            if (Array.isArray(obj.material)) {
+              obj.material.forEach(mat => disposeMaterial(mat));
+            } else {
+              disposeMaterial(obj.material);
+            }
+          }
+        });
+        previewScene = null;
+      }
+
+      // Destroy renderer and controls
       previewSection.classList.remove('visible');
       if (renderer) {
         cancelAnimationFrame(animFrameId);
         renderer.dispose();
+        renderer.forceContextLoss();
         controls.dispose();
         renderer = null;
+        controls = null;
       }
+
+      // Flush three.js internal caches
+      THREE.Cache.clear();
 
       // Clear status
       statusEl.className = 'status';
@@ -435,6 +460,21 @@
       // Reset buttons
       convertBtn.textContent = 'Convert to GLB';
       updateConvertButton();
+    }
+
+    function disposeMaterial(mat) {
+      if (!mat) return;
+      // Dispose all texture maps
+      const texProps = ['map', 'normalMap', 'roughnessMap', 'metalnessMap',
+        'aoMap', 'emissiveMap', 'bumpMap', 'displacementMap',
+        'alphaMap', 'envMap', 'lightMap', 'specularMap'];
+      texProps.forEach(prop => {
+        if (mat[prop]) {
+          mat[prop].dispose();
+          mat[prop] = null;
+        }
+      });
+      mat.dispose();
     }
 
     clearBtn.addEventListener('click', clearAll);
@@ -477,7 +517,6 @@
     // Custom loading manager that resolves from uploaded files
     function createLoadingManager(fileMap) {
       const manager = new THREE.LoadingManager();
-      const objectURLs = [];
 
       manager.setURLModifier((url) => {
         // Extract just the filename from the URL
@@ -485,15 +524,11 @@
         const file = fileMap[filename] || fileMap[filename.toLowerCase()];
         if (file) {
           const objectURL = URL.createObjectURL(file);
-          objectURLs.push(objectURL);
+          activeObjectURLs.push(objectURL);
           return objectURL;
         }
         return url;
       });
-
-      manager.cleanup = () => {
-        objectURLs.forEach(url => URL.revokeObjectURL(url));
-      };
 
       return manager;
     }
@@ -576,7 +611,6 @@
         setupPreview(scene);
         previewSection.classList.add('visible');
 
-        manager.cleanup();
       } catch (err) {
         setStatus('Error: ' + err.message, 'error');
         console.error(err);
